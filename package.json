@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "start": "node server/server.js",
+    "build:frontend": "cd y && npm install && npm run build"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}

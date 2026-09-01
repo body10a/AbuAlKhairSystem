@@ -1,11 +1,22 @@
 {
+  "name": "abu-al-khair-system",
+  "private": true,
+  "version": "1.0.0",
   "scripts": {
-    "start": "node server/server.js",
-    "build:frontend": "cd y && npm install && npm run build"
+    "build": "vite build y"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.6",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "vite": "^8.2.0",
+    "@vitejs/plugin-react": "^6.0.4",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }

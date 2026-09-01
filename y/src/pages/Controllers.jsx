@@ -3,6 +3,15 @@ import "../App.css";
 
 const API_URL = "";
 
+async function readJsonResponse(response) {
+  const text = await response.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`الخادم لم يُرجع JSON صالحًا (${response.status})`);
+  }
+}
+
 const CONTROLLER_TYPES = [
   "دراع PS4",
   "دراع PS5",
@@ -56,11 +65,11 @@ function Controllers() {
       }
 
       setControllers(
-        await controllersResponse.json()
+        await readJsonResponse(controllersResponse)
       );
 
       setCustomers(
-        await customersResponse.json()
+        await readJsonResponse(customersResponse)
       );
     } catch (err) {
       setError(
@@ -250,7 +259,20 @@ function Controllers() {
   const saveController = async (e) => {
     e.preventDefault();
 
-    if (!selectedCustomer) {
+    // Accept an exact customer name/phone even if the dropdown was not clicked.
+    let activeCustomer = selectedCustomer;
+    if (!activeCustomer && customerSearch.trim()) {
+      const normalized = customerSearch.trim().toLowerCase();
+      activeCustomer = customers.find((customer) => {
+        const name = String(customer.name || "").trim().toLowerCase();
+        const phone = String(customer.phone || "").trim().toLowerCase();
+        const combined = `${name} - ${phone}`;
+        return name === normalized || phone === normalized || combined === normalized;
+      }) || null;
+      if (activeCustomer) setSelectedCustomer(activeCustomer);
+    }
+
+    if (!activeCustomer) {
       alert(
         "اكتب اسم العميل أو رقم الموبايل واختار العميل"
       );
@@ -282,7 +304,7 @@ function Controllers() {
 
           body: JSON.stringify({
             customer_id:
-              selectedCustomer.id,
+              activeCustomer.id,
 
             controller_type:
               form.controller_type,
@@ -306,7 +328,7 @@ function Controllers() {
       );
 
       const data =
-        await response.json();
+        await readJsonResponse(response);
 
       if (!response.ok) {
         throw new Error(
@@ -364,7 +386,7 @@ function Controllers() {
         );
 
       const data =
-        await response.json();
+        await readJsonResponse(response);
 
       if (!response.ok) {
         throw new Error(

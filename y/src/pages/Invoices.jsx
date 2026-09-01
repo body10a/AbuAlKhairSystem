@@ -2,6 +2,15 @@ import { useEffect, useState } from "react";
 
 const API_URL = "";
 
+async function readJsonResponse(response) {
+  const text = await response.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`الخادم لم يُرجع JSON صالحًا (${response.status})`);
+  }
+}
+
 function Invoices() {
   const [invoices, setInvoices] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -38,7 +47,7 @@ function Invoices() {
         await fetch(`${API_URL}/api/customers`);
 
       if (customersResponse.ok) {
-        const data = await customersResponse.json();
+        const data = await readJsonResponse(customersResponse);
         setCustomers(data);
       }
     } catch (error) {

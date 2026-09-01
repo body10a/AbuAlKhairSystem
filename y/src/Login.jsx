@@ -1,30 +1,44 @@
 import { useState } from "react";
 import "./Login.css";
 
+const API_URL = "";
+
 function Login({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+    setLoading(true);
 
-    const savedUsername =
-      localStorage.getItem("admin_username") || "admin";
+    try {
+      const response = await fetch(`${API_URL}/api/settings/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: username.trim(),
+          password,
+        }),
+      });
 
-    const savedPassword =
-      localStorage.getItem("admin_password") || "1234";
+      const data = await response.json().catch(() => ({}));
 
-    if (
-      username.trim() === savedUsername &&
-      password === savedPassword
-    ) {
-      setError("");
-      onLogin();
-    } else {
+      if (response.ok && data.ok) {
+        onLogin();
+      } else {
+        setError(
+          data.message || "اسم المستخدم أو كلمة المرور غير صحيحة"
+        );
+      }
+    } catch {
       setError(
-        "اسم المستخدم أو كلمة المرور غير صحيحة"
+        "تعذر الاتصال بالسيرفر، تأكد من اتصال الإنترنت وحاول مرة أخرى"
       );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -85,8 +99,8 @@ function Login({ onLogin }) {
             </div>
           )}
 
-          <button type="submit">
-            تسجيل الدخول
+          <button type="submit" disabled={loading}>
+            {loading ? "جاري الدخول..." : "تسجيل الدخول"}
           </button>
 
         </form>

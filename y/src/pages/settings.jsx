@@ -1,36 +1,45 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+const API_URL = "";
 
 function Settings({ settings, setSettings }) {
-  const [username, setUsername] = useState(
-    localStorage.getItem("admin_username") || "admin"
-  );
+  const [username, setUsername] = useState("admin");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [shopName, setShopName] = useState(settings.shopName);
+  const [loading, setLoading] = useState(true);
 
-  const [currentPassword, setCurrentPassword] =
-    useState("");
+  // Username, password and shop name are now stored on the server (in the
+  // same database as everything else) instead of localStorage, so they
+  // stay in sync across every device instead of resetting whenever a
+  // browser's local storage gets cleared.
+  useEffect(() => {
+    let cancelled = false;
 
-  const [newPassword, setNewPassword] =
-    useState("");
+    fetch(`${API_URL}/api/settings`)
+      .then((response) => response.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.username) setUsername(data.username);
+        if (data.shopName) {
+          setShopName(data.shopName);
+          setSettings((prev) => ({ ...prev, shopName: data.shopName }));
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const [showPassword, setShowPassword] =
-    useState(false);
-
-  const [shopName, setShopName] = useState(
-    localStorage.getItem("shop_name") ||
-      "ABU AL-KHAIR GAMING SHOP"
-  );
-
-  const saveAccount = () => {
-    const savedUsername =
-      localStorage.getItem("admin_username") ||
-      "admin";
-
-    const savedPassword =
-      localStorage.getItem("admin_password") ||
-      "1234";
-
+  const saveAccount = async () => {
     if (!username.trim()) {
       alert("اسم المستخدم مطلوب");
       return;
@@ -38,11 +47,6 @@ function Settings({ settings, setSettings }) {
 
     if (!currentPassword) {
       alert("اكتب كلمة السر الحالية");
-      return;
-    }
-
-    if (currentPassword !== savedPassword) {
-      alert("كلمة السر الحالية غير صحيحة");
       return;
     }
 
@@ -61,89 +65,99 @@ function Settings({ settings, setSettings }) {
       return;
     }
 
-    localStorage.setItem(
-      "admin_username",
-      username.trim()
-    );
+    try {
+      const response = await fetch(`${API_URL}/api/settings/account`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword,
+          newUsername: username.trim(),
+          newPassword,
+        }),
+      });
 
-    localStorage.setItem(
-      "admin_password",
-      newPassword
-    );
+      const data = await response.json().catch(() => ({}));
 
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+      if (!response.ok) {
+        alert(data.message || "تعذر حفظ بيانات الدخول");
+        return;
+      }
 
-    alert("تم تغيير بيانات الدخول بنجاح");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+
+      alert("تم تغيير بيانات الدخول بنجاح، وهتحتاج تسجل دخول بيها من أي جهاز تاني");
+    } catch {
+      alert("تعذر الاتصال بالسيرفر");
+    }
   };
 
-  const saveShopName = () => {
+  const saveShopName = async () => {
     if (!shopName.trim()) {
       alert("اسم المحل مطلوب");
       return;
     }
 
-    const newShopName = shopName.trim();
+    try {
+      const response = await fetch(`${API_URL}/api/settings/shop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopName: shopName.trim() }),
+      });
 
-    localStorage.setItem(
-      "shop_name",
-      newShopName
-    );
+      const data = await response.json().catch(() => ({}));
 
-    setSettings((prev) => ({
-      ...prev,
-      shopName: newShopName,
-    }));
+      if (!response.ok) {
+        alert(data.message || "تعذر حفظ اسم المحل");
+        return;
+      }
 
-    alert("تم حفظ اسم المحل");
+      setSettings((prev) => ({
+        ...prev,
+        shopName: data.shopName || shopName.trim(),
+      }));
+
+      alert("تم حفظ اسم المحل");
+    } catch {
+      alert("تعذر الاتصال بالسيرفر");
+    }
   };
 
-  const resetSettings = () => {
+  const resetSettings = async () => {
     const confirmReset = window.confirm(
       "هل أنت متأكد من إعادة جميع الإعدادات للوضع الافتراضي؟"
     );
 
     if (!confirmReset) return;
 
-    localStorage.setItem(
-      "admin_username",
-      "admin"
-    );
+    try {
+      const response = await fetch(`${API_URL}/api/settings/reset`, {
+        method: "POST",
+      });
 
-    localStorage.setItem(
-      "admin_password",
-      "1234"
-    );
+      if (!response.ok) {
+        alert("تعذر إعادة الإعدادات");
+        return;
+      }
+    } catch {
+      alert("تعذر الاتصال بالسيرفر");
+      return;
+    }
 
-    localStorage.setItem(
-      "shop_name",
-      "ABU AL-KHAIR GAMING SHOP"
-    );
-
-    localStorage.setItem(
-      "app_language",
-      "ar"
-    );
-
-    localStorage.setItem(
-      "app_theme",
-      "dark"
-    );
+    localStorage.setItem("app_language", "ar");
+    localStorage.setItem("app_theme", "dark");
 
     setUsername("admin");
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
-    setShopName(
-      "ABU AL-KHAIR GAMING SHOP"
-    );
+    setShopName("ABU AL-KHAIR GAMING SHOP");
 
     setSettings({
       language: "ar",
       theme: "dark",
-      shopName:
-        "ABU AL-KHAIR GAMING SHOP",
+      shopName: "ABU AL-KHAIR GAMING SHOP",
     });
 
     alert("تم إعادة الإعدادات للوضع الافتراضي");
@@ -195,13 +209,9 @@ function Settings({ settings, setSettings }) {
             <select
               value={settings.language}
               onChange={(e) => {
-                const language =
-                  e.target.value;
+                const language = e.target.value;
 
-                localStorage.setItem(
-                  "app_language",
-                  language
-                );
+                localStorage.setItem("app_language", language);
 
                 setSettings((prev) => ({
                   ...prev,
@@ -227,13 +237,9 @@ function Settings({ settings, setSettings }) {
             <select
               value={settings.theme}
               onChange={(e) => {
-                const theme =
-                  e.target.value;
+                const theme = e.target.value;
 
-                localStorage.setItem(
-                  "app_theme",
-                  theme
-                );
+                localStorage.setItem("app_theme", theme);
 
                 setSettings((prev) => ({
                   ...prev,
@@ -266,7 +272,8 @@ function Settings({ settings, setSettings }) {
             </h3>
 
             <p>
-              يمكنك تغيير اسم المستخدم وكلمة السر بأمان.
+              يمكنك تغيير اسم المستخدم وكلمة السر بأمان. البيانات دي بقت
+              متخزنة على السيرفر فهتشتغل من أي جهاز.
             </p>
           </div>
         </div>
@@ -281,10 +288,9 @@ function Settings({ settings, setSettings }) {
             <input
               type="text"
               value={username}
-              onChange={(e) =>
-                setUsername(e.target.value)
-              }
+              onChange={(e) => setUsername(e.target.value)}
               placeholder="اسم المستخدم"
+              disabled={loading}
             />
           </div>
 
@@ -294,17 +300,9 @@ function Settings({ settings, setSettings }) {
             </label>
 
             <input
-              type={
-                showPassword
-                  ? "text"
-                  : "password"
-              }
+              type={showPassword ? "text" : "password"}
               value={currentPassword}
-              onChange={(e) =>
-                setCurrentPassword(
-                  e.target.value
-                )
-              }
+              onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="اكتب كلمة السر الحالية"
             />
           </div>
@@ -315,17 +313,9 @@ function Settings({ settings, setSettings }) {
             </label>
 
             <input
-              type={
-                showPassword
-                  ? "text"
-                  : "password"
-              }
+              type={showPassword ? "text" : "password"}
               value={newPassword}
-              onChange={(e) =>
-                setNewPassword(
-                  e.target.value
-                )
-              }
+              onChange={(e) => setNewPassword(e.target.value)}
               placeholder="اكتب كلمة السر الجديدة"
             />
           </div>
@@ -336,17 +326,9 @@ function Settings({ settings, setSettings }) {
             </label>
 
             <input
-              type={
-                showPassword
-                  ? "text"
-                  : "password"
-              }
+              type={showPassword ? "text" : "password"}
               value={confirmPassword}
-              onChange={(e) =>
-                setConfirmPassword(
-                  e.target.value
-                )
-              }
+              onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="أعد كتابة كلمة السر الجديدة"
             />
           </div>
@@ -356,16 +338,10 @@ function Settings({ settings, setSettings }) {
         <button
           type="button"
           className="secondary-button"
-          onClick={() =>
-            setShowPassword(!showPassword)
-          }
-          style={{
-            marginTop: "15px",
-          }}
+          onClick={() => setShowPassword(!showPassword)}
+          style={{ marginTop: "15px" }}
         >
-          {showPassword
-            ? "🙈 إخفاء كلمات السر"
-            : "👁️ إظهار كلمات السر"}
+          {showPassword ? "🙈 إخفاء كلمات السر" : "👁️ إظهار كلمات السر"}
         </button>
 
         <br />
@@ -403,10 +379,9 @@ function Settings({ settings, setSettings }) {
           <input
             type="text"
             value={shopName}
-            onChange={(e) =>
-              setShopName(e.target.value)
-            }
+            onChange={(e) => setShopName(e.target.value)}
             placeholder="اسم المحل"
+            disabled={loading}
           />
         </div>
 

@@ -1,7 +1,18 @@
 import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
 import "../App.css";
 
-const API_URL = "";
+const API_URL = "http://localhost:3001";
+const socket = io(API_URL);
+
+async function readJsonResponse(response) {
+  const text = await response.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`الخادم لم يُرجع JSON صالحًا (${response.status})`);
+  }
+}
 
 function Customers() {
   const [customers, setCustomers] = useState([]);
@@ -28,13 +39,11 @@ function Customers() {
         throw new Error("فشل تحميل العملاء");
       }
 
-      const data = await response.json();
-      setCustomers(data);
+      const data = await readJsonResponse(response);
+      setCustomers(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
-      setError(
-        "مش قادر أوصل لقاعدة البيانات. تأكد إن السيرفر شغال."
-      );
+      setError("مش قادر أوصل لقاعدة البيانات. تأكد إن السيرفر شغال.");
     } finally {
       setLoading(false);
     }
@@ -42,6 +51,15 @@ function Customers() {
 
   useEffect(() => {
     loadCustomers();
+
+    // الاستماع للتحديثات اللحظية عبر Socket.IO
+    socket.on("data_updated", () => {
+      loadCustomers();
+    });
+
+    return () => {
+      socket.off("data_updated");
+    };
   }, []);
 
   const handleChange = (e) => {
@@ -115,28 +133,15 @@ function Customers() {
         }),
       });
 
-      const data = await response.json();
+      const data = await readJsonResponse(response);
 
       if (!response.ok) {
-        throw new Error(
-          data.message || "فشل حفظ بيانات العميل"
-        );
-      }
-
-      if (editingId) {
-        setCustomers((old) =>
-          old.map((customer) =>
-            customer.id === editingId
-              ? data
-              : customer
-          )
-        );
-      } else {
-        setCustomers((old) => [data, ...old]);
+        throw new Error(data.message || "فشل حفظ بيانات العميل");
       }
 
       resetForm();
       setShowForm(false);
+      loadCustomers();
     } catch (err) {
       console.error(err);
       setError(err.message);
@@ -155,24 +160,17 @@ function Customers() {
     try {
       setError("");
 
-      const response = await fetch(
-        `${API_URL}/api/customers/${id}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const response = await fetch(`${API_URL}/api/customers/${id}`, {
+        method: "DELETE",
+      });
 
-      const data = await response.json();
+      const data = await readJsonResponse(response);
 
       if (!response.ok) {
-        throw new Error(
-          data.message || "فشل حذف العميل"
-        );
+        throw new Error(data.message || "فشل حذف العميل");
       }
 
-      setCustomers((old) =>
-        old.filter((customer) => customer.id !== id)
-      );
+      loadCustomers();
     } catch (err) {
       console.error(err);
       setError(err.message);
@@ -181,16 +179,11 @@ function Customers() {
 
   return (
     <div className="customers-page">
-
       <div className="page-header">
         <div>
           <p className="small-title">CUSTOMERS</p>
-
           <h2>العملاء 👥</h2>
-
-          <p>
-            إدارة بيانات العملاء وسجل تعاملاتهم.
-          </p>
+          <p>إدارة بيانات العملاء وسجل تعاملاتهم.</p>
         </div>
 
         <button
@@ -204,27 +197,16 @@ function Customers() {
             }
           }}
         >
-          {showForm
-            ? "إلغاء"
-            : "+ إضافة عميل"}
+          {showForm ? "إلغاء" : "+ إضافة عميل"}
         </button>
       </div>
 
-      {error && (
-        <div className="login-error">
-          {error}
-        </div>
-      )}
+      {error && <div className="login-error">{error}</div>}
 
       {showForm && (
-        <form
-          className="customer-form"
-          onSubmit={saveCustomer}
-        >
-
+        <form className="customer-form" onSubmit={saveCustomer}>
           <div className="form-group">
             <label>اسم العميل</label>
-
             <input
               type="text"
               name="name"
@@ -236,7 +218,6 @@ function Customers() {
 
           <div className="form-group">
             <label>رقم الموبايل</label>
-
             <input
               type="text"
               name="phone"
@@ -248,7 +229,6 @@ function Customers() {
 
           <div className="form-group full">
             <label>ملاحظات</label>
-
             <textarea
               name="notes"
               value={form.notes}
@@ -257,87 +237,42 @@ function Customers() {
             />
           </div>
 
-          <button
-            type="submit"
-            className="main-button"
-            disabled={saving}
-          >
+          <button type="submit" className="main-button" disabled={saving}>
             {saving
               ? "جاري الحفظ..."
               : editingId
               ? "حفظ التعديل"
               : "حفظ العميل"}
           </button>
-
         </form>
       )}
 
       <div className="content-card customers-list">
-
         <div className="card-title">
-
           <div>
             <h3>قائمة العملاء</h3>
-
-            <p>
-              عدد العملاء: {customers.length}
-            </p>
+            <p>عدد العملاء: {customers.length}</p>
           </div>
 
-          <button
-            className="secondary-button"
-            onClick={loadCustomers}
-          >
+          <button className="secondary-button" onClick={loadCustomers}>
             تحديث
           </button>
-
         </div>
 
         {loading ? (
-
           <div className="empty-state">
-            <div className="empty-icon">
-              ⏳
-            </div>
-
-            <h3>
-              جاري تحميل العملاء...
-            </h3>
+            <div className="empty-icon">⏳</div>
+            <h3>جاري تحميل العملاء...</h3>
           </div>
-
         ) : customers.length === 0 ? (
-
           <div className="empty-state">
-
-            <div className="empty-icon">
-              👥
-            </div>
-
-            <h3>
-              لسه مفيش عملاء
-            </h3>
-
-            <p>
-              اضغط على إضافة عميل لتسجيل أول عميل.
-            </p>
-
+            <div className="empty-icon">👥</div>
+            <h3>لسه مفيش عملاء</h3>
+            <p>اضغط على إضافة عميل لتسجيل أول عميل.</p>
           </div>
-
         ) : (
-
-          <div
-            className="customers-table"
-            style={{
-              overflowX: "auto",
-            }}
-          >
-
-            <div
-              className="table-head"
-              style={{
-                minWidth: "900px",
-              }}
-            >
+          <div className="customers-table" style={{ overflowX: "auto" }}>
+            <div className="table-head" style={{ minWidth: "900px" }}>
               <span>الاسم</span>
               <span>رقم الموبايل</span>
               <span>تاريخ التسجيل</span>
@@ -346,47 +281,25 @@ function Customers() {
             </div>
 
             {customers.map((customer) => (
-
               <div
                 className="table-row"
                 key={customer.id}
-                style={{
-                  minWidth: "900px",
-                }}
+                style={{ minWidth: "900px" }}
               >
-
-                <strong>
-                  {customer.name}
-                </strong>
-
+                <strong>{customer.name}</strong>
+                <span>{customer.phone}</span>
                 <span>
-                  {customer.phone}
+                  {customer.created_at
+                    ? new Date(customer.created_at).toLocaleDateString("ar-EG")
+                    : "-"}
                 </span>
+                <span>{customer.notes || "لا توجد ملاحظات"}</span>
 
-                <span>
-                  {new Date(
-                    customer.created_at
-                  ).toLocaleDateString("ar-EG")}
-                </span>
-
-                <span>
-                  {customer.notes ||
-                    "لا توجد ملاحظات"}
-                </span>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "8px",
-                  }}
-                >
-
+                <div style={{ display: "flex", gap: "8px" }}>
                   <button
                     type="button"
                     className="secondary-button"
-                    onClick={() =>
-                      editCustomer(customer)
-                    }
+                    onClick={() => editCustomer(customer)}
                   >
                     ✏️ تعديل
                   </button>
@@ -394,28 +307,17 @@ function Customers() {
                   <button
                     type="button"
                     className="secondary-button"
-                    onClick={() =>
-                      deleteCustomer(customer.id)
-                    }
-                    style={{
-                      color: "#ff6b6b",
-                    }}
+                    onClick={() => deleteCustomer(customer.id)}
+                    style={{ color: "#ff6b6b" }}
                   >
                     🗑️ حذف
                   </button>
-
                 </div>
-
               </div>
-
             ))}
-
           </div>
-
         )}
-
       </div>
-
     </div>
   );
 }

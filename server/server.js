@@ -6,7 +6,9 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+
+app.use(cors());
+app.use(express.json());
 
 // إنشاء سيرفر HTTP وربطه بـ Socket.IO للربط اللحظي بين الأجهزة
 const server = http.createServer(app);
@@ -16,9 +18,6 @@ const io = new Server(server, {
     methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
-
-app.use(cors());
-app.use(express.json());
 
 // إعداد قاعدة البيانات
 const dbPath = path.join(__dirname, "ps_manager.db");
@@ -71,7 +70,7 @@ db.exec(`
   );
 `);
 
-// إصلاح مشكلة الباسورد: إدخال البيانات الافتراضية فقط إذا لم تكن موجودة سابقاً
+// إدخال البيانات الافتراضية
 const existingAdmin = db.prepare("SELECT value FROM app_settings WHERE key = ?").get("admin_password");
 if (!existingAdmin) {
   const seedSetting = db.prepare(`INSERT INTO app_settings (key, value) VALUES (?, ?)`);
@@ -193,13 +192,24 @@ app.post("/api/sessions", (req, res) => {
   res.json({ id: result.lastInsertRowid });
 });
 
-// 4. الإعدادات الحسابية والمحل (Settings)
+// 4. الإعدادات وتسجيل الدخول (Settings & Login)
 app.get("/api/settings", (req, res) => {
   res.json({
     admin_username: getSetting("admin_username", "admin"),
     admin_password: getSetting("admin_password", "1234"),
     shop_name: getSetting("shop_name", "ABU AL-KHAIR GAMING SHOP")
   });
+});
+
+app.post("/api/settings/login", (req, res) => {
+  const { username, password } = req.body;
+  const currentUsername = getSetting("admin_username", "admin");
+  const currentPassword = getSetting("admin_password", "1234");
+
+  if (username === currentUsername && password === currentPassword) {
+    return res.json({ ok: true, message: "تم تسجيل الدخول بنجاح" });
+  }
+  return res.status(401).json({ ok: false, message: "اسم المستخدم أو كلمة المرور غير صحيحة" });
 });
 
 app.post("/api/settings/account", (req, res) => {
@@ -218,6 +228,7 @@ app.post("/api/settings/shop", (req, res) => {
 });
 
 // تشغيل السيرفر بواسطة HTTP ومزود بـ Socket.IO
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
